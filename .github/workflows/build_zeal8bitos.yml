@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:    
+
 
 jobs:
   deploy:
-    if: github.repository_owner == 'Zeal8bit'
     runs-on: ubuntu-22.04
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
@@ -38,39 +39,3 @@ jobs:
         env:
             CONF_SERVER: ${{ secrets.ZEAL8BIT_CONF_SITE }}
 
-      - name: Update index.json
-        shell: bash
-        run: |
-          wget $CONF_SERVER/roms/index.json
-          export NAME=$(git describe --tags)
-          export SHA=$(sha256sum -b build/*.img | cut -f1 -d' ')
-          jq ".nightly += [.latest] | .latest = {\"name\" : \"$NAME\", \
-                                                 \"urls\" : \"$CONF_SERVER/roms/$NAME.img\", \
-                                                 \"version\" : \"$NAME/\", \
-                                                 \"hash\": \"$SHA\"}" < index.json > index_new.json
-          mv index_new.json index.json
-        env:
-            CONF_SERVER: ${{ secrets.ZEAL8BIT_CONF_SITE }}
-
-      - name: Setup SSH
-        shell: bash
-        run: |
-          mkdir -p ~/.ssh
-          echo "StrictHostKeyChecking no" > ~/.ssh/config
-          echo "$RUNNER_SSH_PRIV" > ~/.ssh/id_rsa
-          echo "$RUNNER_SSH_PUB" > ~/.ssh/id_rsa.pub
-          sudo sh -c 'echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config'
-        env:
-            RUNNER_SSH_PUB: ${{ secrets.ZEAL8BIT_SSH_PUB }}
-            RUNNER_SSH_PRIV: ${{ secrets.ZEAL8BIT_SSH_PRIV }}
-
-      - name: Publish files
-        shell: bash
-        run: |
-          export NAME=$(git describe --tags).img
-          lftp --env-password -d sftp://$LFTP_USER@$LFTP_SERVER -e "set sftp:auto-confirm yes; put -e build/$NAME -o /htdocs/roms/$NAME; put -e index.json -o /htdocs/roms/index.json; bye"
-        env:
-            LFTP_USER: ${{ secrets.ZEAL8BIT_USER }}
-            LFTP_SERVER: ${{ secrets.ZEAL8BIT_SERVER }}
-            LFTP_PORT: ${{ secrets.ZEAL8BIT_PORT }}
-            LFTP_PASSWORD: ${{ secrets.ZEAL8BIT_PASS }}

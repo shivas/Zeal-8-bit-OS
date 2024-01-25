@@ -12,6 +12,7 @@ mainmenu "Zeal 8-bit OS Configuration"
         default "zeal8bit" if TARGET_ZEAL_8_BIT
         default "trs80" if TARGET_TRS_80
         default "agon" if TARGET_AGON_LIGHT
+        default "shivas" if TARGET_SHIVAS
 
     choice COMPILATION_TARGET
         prompt "Target board"
@@ -35,6 +36,12 @@ mainmenu "Zeal 8-bit OS Configuration"
             prompt "Agon Light"
             help
                 Compile for Agon Light.
+
+        config TARGET_SHIVAS
+            bool
+            prompt "ShiVAs breadboard"
+            help
+                Compile for ShiVAs breadboard computer.
     endchoice
 
     # Configuration options depending on the target
@@ -48,6 +55,10 @@ mainmenu "Zeal 8-bit OS Configuration"
 
     if TARGET_AGON_LIGHT
         source "target/agon/Kconfig"
+    endif
+
+    if TARGET_SHIVAS
+        source "target/shivas/Kconfig"
     endif
 
     source "kernel/Kconfig"

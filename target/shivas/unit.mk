@@ -1,7 +1,9 @@
 INCLUDES := ./ ./include
 
+#ASMFLAGS := -lfile.lis
+
 # Add the source files to assemble for current target, we only have a video driver for now
-SRCS := sio.asm
+SRCS := sio.asm driver_example.asm
 
 # Command to be executed before compiling the whole OS, let's print a small message
 PRECMD := @echo "Compiling for ShiVAs breadboard computer!"

@@ -6,12 +6,12 @@
     DEFINE MMU_H
 
     macro   MMU_INIT _
-        ld  a, 22    ; Physical address of RAM shifted by 14 : 512KB >> 14 = 22
-        out (0xF1), a
-        inc a
-        out (0xF2), a
-        inc a
-        out (0xF3), a
+        ; ld  a, 0x20    ; Physical address of RAM shifted by 14 : 512KB >> 14 = 32
+        ; out (0xF1), a
+        ; inc a
+        ; out (0xF2), a
+        ; inc a
+        ; out (0xF3), a
     endm
 
     ENDIF

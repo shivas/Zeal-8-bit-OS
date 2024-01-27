@@ -35,6 +35,11 @@ zos_drivers_init:
 
 _zos_driver_init_next_driver:
         ; HL points to the name of the driver
+        push    hl
+        ld      hl, msg_initializing_driver
+        call    PrintString
+        pop     hl
+
         call zos_driver_name_valid     ; Check if the name is valid
         jp nc, _zos_valid_name
         ; Invalid name
@@ -52,8 +57,23 @@ _zos_valid_name:
         call _zos_driver_log_error
         jp _zos_next_driver
 _zos_register_driver:
+
+                push    af
+                push    hl
+                ld      hl, msg_initializing_driver_registering
+                call    PrintString
+                pop     hl
+                pop     af
         ; Register the driver in the list
         call zos_driver_register
+
+                push af
+                push    hl
+                ld      hl, msg_initializing_driver_returned
+                call    PrintString
+                pop     hl
+                pop af
+
         or a
         ; Log success will not alter the flags, so if Z is set when entering
         ; the routine, it will be set when exiting the routine.
@@ -255,6 +275,12 @@ zos_driver_register:
         ld d, (hl)
         ex de, hl
         ; Perform a call to a register address (HL)
+
+        push hl
+        ld      hl, msg_before_driverinit
+        call PrintString
+        pop hl
+
         CALL_HL()
         pop hl
         pop bc
@@ -325,6 +351,43 @@ zos_hash_name:
         and DRIVER_NAME_LENGTH - 1
         ret
         ENDIF
+
+ESC     equ $1B				; Escape
+SIO_A_DATA      equ	$00				; SIO data A
+SIO_A_CTRL      equ	$02				; SIO control A    
+
+msg_before_driverinit:
+        defm "just before RST 0x10 inside drivers", 0xd, 0xa, 0
+
+msg_initializing_driver:
+        defm    "initializing driver:...", 0
+
+msg_initializing_driver_registering:
+        defm    "before calling register", 0
+msg_initializing_driver_returned:
+        defm            "initializing returned", 0
+PrintChar:
+                push    af
+PrintCharTxWait:
+                in      a, (SIO_A_CTRL)		; Read RR0 and place it in accumulator
+                and     %00000100				; Isolate bit 2: TX Buffer Empty
+                jr      z, PrintCharTxWait		; If it's busy, then wait
+                pop     af
+                out     (SIO_A_DATA), a		; Transmit the character in accumulator
+                ret
+
+PrintString:
+                push    af
+PrintStringLoop:
+                ld      a, (HL)					; Load character to print in accumulator
+                inc     hl						; Increment HL to next character to print
+                cp      0					; Is it the end of the string?
+                jr      z, PrintStringEnd		; Yes, then exit routine
+                call    PrintChar				; Print the character
+                jr      PrintStringLoop			; Repeat the loop until null character is reached
+PrintStringEnd:
+                pop     af
+                ret
 
         SECTION KERNEL_BSS
 ; Allocate 8-bit for the current number of drivers

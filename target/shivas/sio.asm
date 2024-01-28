@@ -61,11 +61,11 @@ sio_write:
         xor a
         ret
 sio_seek:
-        ld      a, ERR_NOT_SUPPORTED
+        xor     a
         ret
 
 sio_ioctl:
-        ld      a, ERR_NOT_SUPPORTED
+        xor a
         ret
 
 
@@ -138,6 +138,7 @@ _stdout_save_restore_position:
                 public  stdout_print_char
 stdout_print_char:
 uart_send_byte:
+                IFDEF sio_check
                 push    af
 uart_send_byte_wait_for_tx_buffer:
                 in      a, (SIO_A_CTRL)		; Read RR0 and place it in accumulator
@@ -145,6 +146,7 @@ uart_send_byte_wait_for_tx_buffer:
                 jr      z, uart_send_byte_wait_for_tx_buffer		; If it's busy, then wait
                 pop     af
                 out     (SIO_A_DATA), a		; Transmit the character in accumulator
+                ENDIF
                 ret
 
 uart_write_hl:

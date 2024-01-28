@@ -367,6 +367,7 @@ msg_initializing_driver_registering:
 msg_initializing_driver_returned:
         defm            "initializing returned", 0
 PrintChar:
+        ifdef sio_check
                 push    af
 PrintCharTxWait:
                 in      a, (SIO_A_CTRL)		; Read RR0 and place it in accumulator
@@ -374,6 +375,7 @@ PrintCharTxWait:
                 jr      z, PrintCharTxWait		; If it's busy, then wait
                 pop     af
                 out     (SIO_A_DATA), a		; Transmit the character in accumulator
+        endif
                 ret
 
 PrintString:

@@ -154,6 +154,7 @@ shivas_hello:
 
 init_SIO:
     ; configure SIO for serial 115200 boud transmission
+        IFDEF sio_check
                 ld      a, %00011000				; Perform channel reset
                 out     (SIO_A_CTRL), a
                 nop                             ; Awaiting SIO reset
@@ -170,10 +171,12 @@ init_SIO:
                 out     (SIO_A_CTRL), a
                 ld      a, %01101000				; WR5: DTR=0, 8-bits/char, TX enabled
                 out     (SIO_A_CTRL), a
+        ENDIF
                 ret
 
 
 PrintChar:
+        ifdef   sio_check
                 push    af
 PrintCharTxWait:
                 in      a, (SIO_A_CTRL)		; Read RR0 and place it in accumulator
@@ -181,6 +184,7 @@ PrintCharTxWait:
                 jr      z, PrintCharTxWait		; If it's busy, then wait
                 pop     af
                 out     (SIO_A_DATA), a		; Transmit the character in accumulator
+        endif
                 ret
 
 PrintString:

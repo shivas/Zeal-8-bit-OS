@@ -28,6 +28,19 @@
                 rst 0x10
         ENDM
 
+                ; Performs a CALL (HL)
+        ; macro   CALL_HL _
+        ;         local   l1
+        ;         exx
+        ;         ld      hl, l1
+        ;         push    hl
+        ;         exx
+        ;         push    hl
+        ;         ret
+        ;         l1:
+        ;         ;rst 0x10
+        ; endm
+
         ; Allocate 256 bytes on the stack
         ; Alters: HL, SP
         MACRO ALLOC_STACK_256 _

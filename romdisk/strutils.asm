@@ -1,8 +1,10 @@
-; SPDX-FileCopyrightText: 2023 Zeal 8-bit Computer <contact@zeal8bit.com>
+; SPDX-FileCopyrightText: 2023-4 Zeal 8-bit Computer <contact@zeal8bit.com>; Shawn Sijnstra <shawn@sijnstra.com>;
 ;
 ; SPDX-License-Identifier: Apache-2.0
 
         SECTION TEXT
+
+        EXTERN  cphlbc
 
         ; Look for the delimiter A in the string pointed by HL
         ; Once it finds it, the token is replace by \0.
@@ -292,44 +294,65 @@ _parse_dec_end:
         pop de
         ret
 
+;Convert lower nibble in A from ASCII to octal digit
+;Parameters:
+;  A is ASCII character to convert
+;returns:
+;  success: A has hex value, carry clear
+;  fail: A preserved, carry set
+
 parse_oct_digit:
         cp '0'
-        jp c, _parse_not_oct_digit
+        ret c
         cp '7' + 1
-        jp nc, _parse_not_oct_digit
+        ccf
+        ret c
         ; A is between '0' and '7'
         sub '0' ; CY will be reset
         ret
-_parse_not_oct_digit:
-        scf
-        ret
+
+
+;Convert lower nibble in A from ASCII to decimal digit
+;Parameters:
+;  A is ASCII character to convert
+;returns:
+;  success: A has hex value, carry clear
+;  fail: A preserved, carry set
 
         PUBLIC parse_dec_digit
 parse_dec_digit:
         cp '0'
-        jp c, _parse_not_dec_digit
+        ret    c
         cp '9' + 1
-        jp nc, _parse_not_dec_digit
+        ccf
+        ret c
+_parse_hex_dec_digit:
         ; A is between '0' and '9'
         sub '0' ; CY will be reset
         ret
-_parse_not_dec_digit:
-        scf
-        ret
 
+;Convert lower nibble in A from ASCII to hex digit
+;Parameters:
+;  A is ASCII character to convert
+;returns:
+;  success: A has hex value, carry clear
+;  fail: A preserved, carry set
+
+        PUBLIC parse_hex_digit
 parse_hex_digit:
         cp '0'
-        jp c, _parse_not_hex_digit
+        ret c
         cp '9' + 1
         jp c, _parse_hex_dec_digit
         cp 'A'
-        jp c, _parse_not_hex_digit
+        ret c
         cp 'F' + 1
         jp c, _parse_upper_hex_digit
         cp 'a'
-        jp c, _parse_not_hex_digit
+        ret c
         cp 'f' + 1
-        jp nc, _parse_not_hex_digit
+        ccf
+        ret c
 _parse_lower_hex_digit:
         ; A is a character between 'a' and 'f'
         sub 'a' - 10 ; CY will be reset
@@ -338,13 +361,104 @@ _parse_upper_hex_digit:
         ; A is a character between 'A' and 'F'
         sub 'A' - 10 ; CY will be reset
         ret
-_parse_hex_dec_digit:
-        ; A is a character between '0' and '9'
-        sub '0' ; CY will be reset
+
+        ; Convert a 32-bit value to ASCII (u32 decimal)
+        ; Parameters:
+        ;       HL - pointer to 32 bit value in little endian (source)
+        ;       DE - String destination. It must have 10 free bytes to write the ASCII result.
+        ;
+        ; Returns:
+        ;       DE - DE + 10
+        ;       HL - HL + 4
+        ; Alters:
+        ;       A, DE, HL, contents of original 32 bit value now zero.
+        PUBLIC dword_to_ascii_dec
+dword_to_ascii_dec:
+        push bc ;preserve bc
+        push hl ;put the source address on the stack
+        ld b,10     ;10 digits maximum
+        ld h,d    ;de has outbuf
+        ld l,e
+_pde_u_zerobuf:
+        ld (hl),0  ;zero out the output
+        inc hl
+        djnz _pde_u_zerobuf
+
+        ld b,4 * 8      ; number of loops through = number of bytes * 8
+
+_bcd_Convert:
+        ld c,10     ;num output digits
+        ld h,d
+        ld l,e
+
+_bcd_Add3:
+        ld a,(hl)
+        cp 5       ;only add 3 if the digit is 5 or above
+        jr c,_bcd_no_carry
+        add a,3
+        ld (hl),a
+_bcd_no_carry:
+        inc hl
+        dec c
+        jr nz,_bcd_Add3 ;
+
+        pop hl  ;hl has source address again
+        push hl
+        sla (hl)
+        inc hl
+        rl (hl)
+        inc hl
+        rl (hl)
+        inc hl
+        rl (hl)
+
+        ld c,10  ;num output digits
+        ld hl,9 ;HL = string destination + 10
+        push af ;preserve carry
+        add hl,de ;so we can go backwards through the bitshift
+        pop af
+_bcd_BitShift:
+        ld a,(hl)
+        rla
+        bit 4,a
+        jr z,_bcd_BitShift_clear
+        and 0x0F ;retain these bits
+        scf ;roll carry into next digit
+_bcd_BitShift_clear:
+        ld (hl),a
+        dec hl
+        dec c
+        jr nz,_bcd_BitShift
+        djnz _bcd_Convert
+
+        ld h,d ;hl has the start of the buffer again
+        ld l,e
+        ld b,10-1
+_pde_u_make_ascii:
+        ld a,(hl)
+        or a
+        jr nz,_pde_u_make_ascii2
+        ld (hl),' '
+        inc hl
+        djnz _pde_u_make_ascii
+_pde_u_make_ascii2:
+        inc b
+_pde_u_make_ascii3:
+        ld a,(hl)
+        or 0x30 ;turn into ascii
+        ld (hl),a
+        inc hl
+        djnz _pde_u_make_ascii3
+;hl is now just after the end of the buffer string
+        ex de,hl
+        pop hl
+        inc hl ;add 4 for consistency with hex version
+        inc hl
+        inc hl
+        inc hl
+        pop bc
         ret
-_parse_not_hex_digit:
-        scf
-        ret
+
 
 
         ; Convert a 32-bit value to ASCII (hex)
@@ -355,7 +469,7 @@ _parse_not_hex_digit:
         ;       HL - HL + 4
         ;       DE - DE + 8
         ; Alters:
-        ;       A, DE
+        ;       A, DE, HL
         PUBLIC dword_to_ascii
 dword_to_ascii:
         push bc
@@ -418,15 +532,11 @@ byte_to_ascii:
         ld e, a
         ret
 _byte_to_ascii_nibble:
-        ; If the byte is between 0 and 9 included, add '0'
-        sub 10
-        jp nc, _byte_to_ascii_af
-        ; Byte is between 0 and 9
-        add '0' + 10
-        ret
-_byte_to_ascii_af:
-        ; Byte is between A and F
-        add 'A'
+        ; efficient routine to convert nibble into ASCII
+        add a, 0x90
+        daa
+        adc a, 0x40
+        daa
         ret
 
         ; Convert a date (DATE_STRUCT) to ASCII.

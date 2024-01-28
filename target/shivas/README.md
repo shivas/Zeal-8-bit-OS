@@ -1,0 +1,5 @@
+## ShiVAs breadboard target
+
+1. ROM 0x0000 -> 0x3fff (16kb)
+2. RAM 0x4000 0> 0xffff (48kb)
+3. SIO ports 0x00->0x04

@@ -9,6 +9,7 @@
         INCLUDE "target_h.asm"
         INCLUDE "log_h.asm"
         INCLUDE "vfs_h.asm"
+        ;INCLUDE "stdout_h.asm"
 
         ; Forward declaration of symbols used below
         EXTERN zos_drivers_init
@@ -22,6 +23,12 @@
         EXTERN __KERNEL_BSS_size
         EXTERN __DRIVER_BSS_head
         EXTERN __DRIVER_BSS_size
+
+    ; PORTS
+        ESC     equ $1B				; Escape
+        SIO_A_DATA      equ	$00				; SIO data A
+        SIO_A_CTRL      equ	$02				; SIO control A    
+
 
         SECTION KERNEL_TEXT
 
@@ -60,17 +67,34 @@ zos_entry:
         ld (hl), 0
         ldir
 
+        call    shivas_hello
+
         ; Initialize the disk module
         call zos_disks_init
+
+        ld hl, shiv_msg1
+        call PrintString
 
         ; Initialize the VFS
         call zos_vfs_init
 
+        ld      hl, shiv_msg2
+        call    PrintString
+
+
         ; Initialize the logger
         call zos_log_init
 
+        ld      hl, shiv_msg3
+        call    PrintString
+
+
         ; Initialize all the drivers
         call zos_drivers_init
+
+
+        ld      hl, shiv_msg4
+        call    PrintString
 
         ; Setup the default stdin and stdout in the vfs
         call zos_vfs_restore_std
@@ -115,6 +139,101 @@ reboot: halt
 
 _load_error_1: DEFM "Could not load ", 0
 _load_error_2: DEFM " initialization file\n", 0
+
+shivas_hello:
+                call    init_SIO
+
+                ld      hl, SetupTerminal
+                call    PrintString
+
+                call    ClearScreen
+
+                ld      hl, zos_boilerplate
+                call    PrintString
+                ret
+
+init_SIO:
+    ; configure SIO for serial 115200 boud transmission
+        IFDEF sio_check
+                ld      a, %00011000				; Perform channel reset
+                out     (SIO_A_CTRL), a
+                nop                             ; Awaiting SIO reset
+                ld      a, %00000100				; WR0: register 4
+                out     (SIO_A_CTRL), a
+                ld      a, %10000100				; WR4: 1/32 (115200 @ 3.686 MHZ), 8-bit sync, 1 stop bit, no parity
+;		ld	a, %01000100				; WR4: 1/16 (230400 @ 3.686 MHZ), 8-bit sync, 1 stop bit, no parity
+                out     (SIO_A_CTRL), a
+                ld      a, %00000011				; WR0: register 3
+                out     (SIO_A_CTRL), a
+                ld      a, %11000001				; WR3: 8-bits/char, RX enabled
+                out     (SIO_A_CTRL), a
+                ld      a, %00000101				; WR0: register 5
+                out     (SIO_A_CTRL), a
+                ld      a, %01101000				; WR5: DTR=0, 8-bits/char, TX enabled
+                out     (SIO_A_CTRL), a
+        ENDIF
+                ret
+
+
+PrintChar:
+        ifdef   sio_check
+                push    af
+PrintCharTxWait:
+                in      a, (SIO_A_CTRL)		; Read RR0 and place it in accumulator
+                and     %00000100				; Isolate bit 2: TX Buffer Empty
+                jr      z, PrintCharTxWait		; If it's busy, then wait
+                pop     af
+                out     (SIO_A_DATA), a		; Transmit the character in accumulator
+        endif
+                ret
+
+PrintString:
+                push    af
+PrintStringLoop:
+                ld      a, (HL)					; Load character to print in accumulator
+                inc     hl						; Increment HL to next character to print
+                cp      0					; Is it the end of the string?
+                jr      z, PrintStringEnd		; Yes, then exit routine
+                call    PrintChar				; Print the character
+                jr      PrintStringLoop			; Repeat the loop until null character is reached
+PrintStringEnd:
+                pop     af
+                ret 
+
+ClearScreen:
+                push    hl
+                ld      hl, ClearScreenSeq
+                call    PrintString
+                pop     hl
+                ret
+
+SetupTerminal:
+        db	ESC, '[', '=', '1', 'h', 0
+
+ClearScreenSeq:
+        db	ESC, '[', '2', 'J'		; Clears the screen
+        db	ESC, '[', '0', '1', ';', '0', '1', 'H', 0 ; Sets to home position
+
+BoldTextSeq:
+        db ESC, '[', '1', 'm'
+BoldTextResetSeq:
+        db ESC, '[', '2', '2', 'm'
+
+shiv_msg1:
+                defm    "after zos_disks_init", 0xd, 0xa, 0
+
+shiv_msg2:
+                defm    "after zos_vfs_init", 0xd, 0xa, 0
+
+shiv_msg3:
+                defm    "after zos_log_init", 0xd, 0xa, 0
+
+shiv_msg4:
+                defm    "after zos_driver_init", 0xd, 0xa, 0
+
+shiv_stdout_msg:
+                defm    "this should be printed with stdout", 0xd, 0xa
+shiv_stdout_msg_end:
 
 
         PUBLIC _zos_default_init
